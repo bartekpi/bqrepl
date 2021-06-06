@@ -29,7 +29,7 @@ Available options:
 ```
 
 # Command line arguments
-```bash
+```
 $ bqrepl --help
 Usage: bqrepl [OPTIONS]
 
