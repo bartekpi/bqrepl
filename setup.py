@@ -17,7 +17,7 @@ setup(
     description="REPL for Big Query",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/bartekpi/bqcli",
+    url="https://github.com/bartekpi/bqrepl",
     packages=["bqrepl"],
     install_requires=requirements,
     python_requires=">=3.6",
