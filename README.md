@@ -55,6 +55,7 @@ Python dependencies:
 - click
 - prompt-toolkit
 - logzero
+- pydata-google-auth
 
 # Tasks
 Stuff to implement, in no particular order:
@@ -69,7 +70,7 @@ Stuff to implement, in no particular order:
     - [ ] nicer looking errors/warnings
     - [ ] multiline queries
     - [ ] multiline results
-    - [ ] better authentication
+    - [x] some kind of authentication flow if there's no service account provided
     - [ ] persist query history in local database
     - [ ] query result pagination or whatever is required to keep # results sane
 
