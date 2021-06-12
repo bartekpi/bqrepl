@@ -160,17 +160,6 @@ style = Style.from_dict(
 
 class BQREPL:
     def __init__(self, credentials_file=None, project=None):
-        if not (credentials_file or os.getenv("GOOGLE_APPLICATION_CREDENTIALS")):
-            logger.error(
-                "Can't determine credentials, use GOOGLE_APPLICATION_CREDENTIALS"
-                " env var, or provide path as command line argument."
-            )
-            sys.exit(1)
-
-        if credentials_file:
-            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_file
-
-        self.credentials_file = os.environ["GOOGLE_APPLICATION_CREDENTIALS"]
 
         self.settings = {
             "expanded": False,
@@ -181,7 +170,7 @@ class BQREPL:
             "max_expanded_width": 100,
             "project": project,
         }
-
+        self.credentials_file = credentials_file
         self.session = None
         self.prompt = None
         self.client = None
@@ -205,18 +194,34 @@ class BQREPL:
 
     def set_credentials(self):
         """Retrieves credentials"""
+        if not (self.credentials_file or os.getenv("GOOGLE_APPLICATION_CREDENTIALS")):
+            import pydata_google_auth
+            self.credentials = pydata_google_auth.get_user_credentials(
+                ["https://www.googleapis.com/auth/bigquery"]
+            )
+            if not self.settings.get("project"):
+                project = input("Please provide project ID: ")
+                self.set_project(project)
+        else:
+            if self.credentials_file:
+                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.credentials_file
 
-        self.credentials = service_account.Credentials.from_service_account_file(
-            self.credentials_file,
-            scopes=["https://www.googleapis.com/auth/cloud-platform"],
-        )
-        if not self.settings.get("project"):
-            self.set_project(self.credentials.project_id)
+            self.credentials_file = os.environ["GOOGLE_APPLICATION_CREDENTIALS"]
+
+            self.credentials = service_account.Credentials.from_service_account_file(
+                self.credentials_file,
+                scopes=["https://www.googleapis.com/auth/bigquery"],
+            )
+            project = self.credentials.project_id
+
+            if not self.settings.get("project"):
+                self.set_project(project)
 
     def set_project(self, project):
         """Switches acitve project"""
 
         self.settings["project"] = project
+        # self.credentials = None
         self.connect_client()
 
     def list_projects(self):
@@ -624,10 +629,10 @@ class BQREPL:
                 )
                 print_formatted_text(HTML(message))
             elif variable == "project":
-                self.settings["project"] = value
                 message = (
                     "Switched project to <ansibrightblack>" f"{value}</ansibrightblack>"
                 )
+                self.set_project(value)
                 print_formatted_text(HTML(message))
             else:
                 self.settings[variable] = int(value)
