@@ -12,141 +12,15 @@ from google.cloud import bigquery
 
 from prompt_toolkit import PromptSession, print_formatted_text, HTML
 from prompt_toolkit.formatted_text import merge_formatted_text
-from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.styles import Style
-from pygments.lexers.sql import SqlLexer
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.shortcuts import clear, prompt
+from prompt_toolkit.completion import WordCompleter
 
-
-sql_completer = WordCompleter(
-    [
-        "abort",
-        "action",
-        "add",
-        "after",
-        "all",
-        "alter",
-        "analyze",
-        "and",
-        "as",
-        "asc",
-        "attach",
-        "autoincrement",
-        "before",
-        "begin",
-        "between",
-        "by",
-        "cascade",
-        "case",
-        "cast",
-        "check",
-        "collate",
-        "column",
-        "commit",
-        "conflict",
-        "constraint",
-        "create",
-        "cross",
-        "current_date",
-        "current_time",
-        "current_timestamp",
-        "database",
-        "default",
-        "deferrable",
-        "deferred",
-        "delete",
-        "desc",
-        "detach",
-        "distinct",
-        "drop",
-        "each",
-        "else",
-        "end",
-        "escape",
-        "except",
-        "exclusive",
-        "exists",
-        "explain",
-        "fail",
-        "for",
-        "foreign",
-        "from",
-        "full",
-        "glob",
-        "group",
-        "having",
-        "if",
-        "ignore",
-        "immediate",
-        "in",
-        "index",
-        "indexed",
-        "initially",
-        "inner",
-        "insert",
-        "instead",
-        "intersect",
-        "into",
-        "is",
-        "isnull",
-        "join",
-        "key",
-        "left",
-        "like",
-        "limit",
-        "match",
-        "natural",
-        "no",
-        "not",
-        "notnull",
-        "null",
-        "of",
-        "offset",
-        "on",
-        "or",
-        "order",
-        "outer",
-        "plan",
-        "pragma",
-        "primary",
-        "query",
-        "raise",
-        "recursive",
-        "references",
-        "regexp",
-        "reindex",
-        "release",
-        "rename",
-        "replace",
-        "restrict",
-        "right",
-        "rollback",
-        "row",
-        "savepoint",
-        "select",
-        "set",
-        "table",
-        "temp",
-        "temporary",
-        "then",
-        "to",
-        "transaction",
-        "trigger",
-        "union",
-        "unique",
-        "update",
-        "using",
-        "vacuum",
-        "values",
-        "view",
-        "virtual",
-        "when",
-        "where",
-        "with",
-        "without",
-    ],
-    ignore_case=True,
-)
+from bqrepl.completer import BQCompleter
+from bqrepl.lexer import BQLexer
+from bqrepl.config import help_commands, help_options, default_settings
 
 style = Style.from_dict(
     {
@@ -161,15 +35,8 @@ style = Style.from_dict(
 class BQREPL:
     def __init__(self, credentials_file=None, project=None):
 
-        self.settings = {
-            "expanded": False,
-            "format_integer": ",d",
-            "format_float": ",.4f",
-            "maxrows": 100,
-            "maxwidth": 50,
-            "max_expanded_width": 100,
-            "project": project,
-        }
+        self.settings = default_settings
+        self.settings["project"] = project
         self.credentials_file = credentials_file
         self.session = None
         self.prompt = None
@@ -188,8 +55,12 @@ class BQREPL:
         self.prompt = "[{}] ~> ".format(self.settings.get("project", ""))
 
     def start_session(self):
+        sql_completer = BQCompleter()
+
         self.session = PromptSession(
-            lexer=PygmentsLexer(SqlLexer), completer=sql_completer, style=style
+            lexer=PygmentsLexer(BQLexer),
+            completer=sql_completer,
+            style=style
         )
 
     def set_credentials(self):
@@ -200,7 +71,32 @@ class BQREPL:
                 ["https://www.googleapis.com/auth/bigquery"]
             )
             if not self.settings.get("project"):
-                project = input("Please provide project ID: ")
+                available_projects = []
+                while True:
+                    project = prompt(
+                        "Please provide project ID: ",
+                        completer=WordCompleter(available_projects)
+                        )
+                    client_test = bigquery.Client(
+                        project=project, credentials=self.credentials
+                    )
+                    available_projects = [
+                        x.project_id for x in client_test.list_projects()
+                    ]
+                    if project not in available_projects:
+                        message = (
+                            "<ansibrightred>"
+                            "Incorrect project ID provided."
+                            "</ansibrightred>"
+                            "\nAvailable projects:"
+                        )
+                        for i, p in enumerate(sorted(available_projects)):
+                            message += (
+                                f"\n{i+1}) <ansibrightblack>{p}</ansibrightblack>")
+                        print_formatted_text(HTML(message))
+                    else:
+                        break
+
                 self.set_project(project)
         else:
             if self.credentials_file:
@@ -208,10 +104,16 @@ class BQREPL:
 
             self.credentials_file = os.environ["GOOGLE_APPLICATION_CREDENTIALS"]
 
-            self.credentials = service_account.Credentials.from_service_account_file(
-                self.credentials_file,
-                scopes=["https://www.googleapis.com/auth/bigquery"],
-            )
+            try:
+                self.credentials = (
+                    service_account.Credentials.from_service_account_file(
+                        self.credentials_file,
+                        scopes=["https://www.googleapis.com/auth/bigquery"],
+                    ))
+            except ValueError as e:
+                logger.error(e)
+                sys.exit(1)
+
             project = self.credentials.project_id
 
             if not self.settings.get("project"):
@@ -221,7 +123,6 @@ class BQREPL:
         """Switches acitve project"""
 
         self.settings["project"] = project
-        # self.credentials = None
         self.connect_client()
 
     def list_projects(self):
@@ -353,6 +254,21 @@ class BQREPL:
                 fields=t.fields,
             )
             for t in client_results.schema
+        ]
+
+        self.show_results(data, schema)
+
+    def print_help(self):
+        Schema = namedtuple("Schema", ["name", "field_type"])
+
+        schema = [
+            Schema("command", "STRING"),
+            Schema("description", "STRING"),
+        ]
+
+        data = [
+            {"command": c, "description": d}
+            for c, d in help_commands + help_options
         ]
 
         self.show_results(data, schema)
@@ -541,6 +457,10 @@ class BQREPL:
 
     def execute_command(self, text):
         """Execute BQ command"""
+        text = text.strip()
+
+        if text == "\\?":
+            self.print_help()
 
         if text.split(" ")[0] in ("\\d", "\\datasets"):
             if len(text.split(" ")) > 1:
@@ -662,11 +582,21 @@ class BQREPL:
 
         while True:
             try:
-                text = self.session.prompt(self.prompt)
+                text = self.session.prompt(
+                    self.prompt, auto_suggest=AutoSuggestFromHistory()
+                    )
             except KeyboardInterrupt:
                 continue
             except EOFError:
                 break
+
+            if not text:
+                continue
+            if not text.strip():
+                continue
+            if text.strip().lower() in ["clear", "\\clear"]:
+                clear()
+                continue
 
             if text.startswith("\\"):
                 self.execute_command(text)
