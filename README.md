@@ -10,22 +10,27 @@ REPL for BigQuery
 # Commands
 ```
 Commands:
-\d, \datasets [PROJECT]               list datasets in current project (or another project)
-\p, \projects [PROJECT]               list projects (will switch projects when provided as parameter)
-\t, \tables [PROJECT.]DATASET         list tables in a dataset
-\c, \columns [PROJECT.]DATASET.TABLE  list columns in a table
-\x, \expanded                         toggle expanded view on/off
+\?                                    Print this stuff
+\d, \datasets [PROJECT]               List datasets in current project (or another project)
+\p, \projects [PROJECT]               List projects
+                                      Will switch projects when provided as parameter
+\t, \tables [PROJECT.]DATASET         List tables in a dataset
+\c, \columns [PROJECT.]DATASET.TABLE  List columns in a table
+\x, \expanded                         Toggle expanded view on/off.
+                                      Shorthand for \set expanded BOOL
+\clear, clear                         Clear screen
+
 
 Options:
-\set VARIABLE VALUE                   set option:
+\set VARIABLE VALUE                   
 Available options:
-    - project PROJECT_ID              set current project to PROJECT_ID
-    - maxrows 100                     maximum rows displayed (default=100)
-    - maxwidth 50                     maxium column width in non-expanded view (default=50)
-    - max_expanded_width 100          maximum column width in expanded view (default=100)
-    - expanded False                  expanded view (default=False)
-    - format_integer ,d               integer display format (default=",d")
-    - format_float ,.4f               float display format (default=",.4f")
+    - project PROJECT_ID              Set current project to PROJECT_ID
+    - maxrows INT                     Maximum rows displayed (default=100)
+    - maxwidth INT                    Maximum column width in non-expanded view (default=50)
+    - max_expanded_width INT          Maximum column width in expanded view (default=100)
+    - expanded BOOL                   Expanded view (default=False)
+    - format_integer STR              Integer display format (default=",d")
+    - format_float STR                Float display format (default=",.4f")
 ```
 
 # Command line arguments
@@ -69,7 +74,7 @@ Stuff to implement, in no particular order:
     - [x] switch GCP projects during session
     - [ ] nicer looking errors/warnings
     - [ ] multiline queries
-    - [ ] multiline results
+    - [ ] multiline results in cells
     - [x] some kind of authentication flow if there's no service account provided
     - [ ] persist query history in local database
     - [ ] query result pagination or whatever is required to keep # results sane
@@ -80,7 +85,7 @@ Stuff to implement, in no particular order:
     - [ ] execute SQL from command line
 
 - [ ] code completion:
-    - [ ] BQ-specific SQL syntax
+    - [x] BQ-specific SQL syntax
     - [ ] projects/datasets/tables/columns available in the query context
     - [ ] BQ commands
 
@@ -106,5 +111,5 @@ Stuff to implement, in no particular order:
     - [ ] project/dataset tree
     - [ ] use tabs for query results?
     - [ ] async queries
-    - [ ] clear screen
-    - [ ] integrate ptpython?
+    - [x] clear screen
+    - [x] \? help command
