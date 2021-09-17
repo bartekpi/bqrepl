@@ -53,7 +53,7 @@ class BQCompleter(Completer):
                 "st_makepolygonoriented", "st_maxdistance", "st_npoints",
                 "st_numpoints", "st_perimeter", "st_pointn", "st_simplify",
                 "st_snaptogrid", "st_startpoint", "st_touches", "st_union",
-                "st_union_agg", "st_within", "st_x", "st_y",
+                "st_union_agg", "st_dwithin", "st_within", "st_x", "st_y",
                 "farm_fingerprint", "md5", "sha1", "sha256", "sha512",
                 "hll_count.init", "hll_count.merge", "hll_count.merge_partial",
                 "hll_count.extract",
