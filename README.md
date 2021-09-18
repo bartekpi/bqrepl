@@ -61,6 +61,7 @@ Python dependencies:
 - prompt-toolkit
 - logzero
 - pydata-google-auth
+- requests
 
 # Tasks
 Stuff to implement, in no particular order:
