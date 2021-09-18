@@ -481,7 +481,7 @@ class BQREPL:
             dt = datetime.now(tz=pytz.utc) - t0
             footer_row += (
                 " Time: "
-                + style(dt, fg="bright_black")
+                + style(str(dt), fg="bright_black")
             )
         echo(footer_row)
 
