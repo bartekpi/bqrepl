@@ -1,7 +1,5 @@
 from setuptools import setup
-
-with open("VERSION", "r") as f:
-    version = f.read().strip()
+from bqrepl import __version__
 
 with open("requirements.txt", "r") as f:
     requirements = [x.strip() for x in f.readlines()]
@@ -11,7 +9,8 @@ with open("README.md", "r") as f:
 
 setup(
     name="bqrepl",
-    version=version,
+    version=__version__,
+    license="MIT",
     author="Bartosz Pieniak",
     author_email="bartosz.pieniak@gmail.com",
     description="REPL for Big Query",
