@@ -1,17 +1,18 @@
 import os
 import sys
+from shutil import get_terminal_size
 from copy import deepcopy
 from datetime import datetime
 from collections import namedtuple
 
 import pytz
 import click
+from click import echo, echo_via_pager, secho, style, unstyle
 from logzero import logger
 from google.oauth2 import service_account
 from google.cloud import bigquery
 
-from prompt_toolkit import PromptSession, print_formatted_text, HTML
-from prompt_toolkit.formatted_text import merge_formatted_text
+from prompt_toolkit import PromptSession
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.styles import Style
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
@@ -22,7 +23,7 @@ from bqrepl.completer import BQCompleter
 from bqrepl.lexer import BQLexer
 from bqrepl.config import help_commands, help_options, default_settings
 
-style = Style.from_dict(
+prompt_style = Style.from_dict(
     {
         "completion-menu.completion": "bg:#008888 #ffffff",
         "completion-menu.completion.current": "bg:#00aaaa #000000",
@@ -43,6 +44,9 @@ class BQREPL:
         self.client = None
         self.credentials = None
 
+        if not os.environ.get("LESS"):
+            os.environ["LESS"] = "-SRXF"
+
     def connect_client(self):
         """Connects to BQ"""
         if not self.credentials:
@@ -60,7 +64,7 @@ class BQREPL:
         self.session = PromptSession(
             lexer=PygmentsLexer(BQLexer),
             completer=sql_completer,
-            style=style
+            style=prompt_style
         )
 
     def set_credentials(self):
@@ -85,15 +89,14 @@ class BQREPL:
                     ]
                     if project not in available_projects:
                         message = (
-                            "<ansibrightred>"
-                            "Incorrect project ID provided."
-                            "</ansibrightred>"
-                            "\nAvailable projects:"
+                            style("Incorrect project ID provided.", fg="bright_red")
+                            + "\nAvailable projects:"
                         )
                         for i, p in enumerate(sorted(available_projects)):
                             message += (
-                                f"\n{i+1}) <ansibrightblack>{p}</ansibrightblack>")
-                        print_formatted_text(HTML(message))
+                                f"\n{i+1}) " + style(p, fg="bright_black")
+                            )
+                        echo(message)
                     else:
                         break
 
@@ -315,24 +318,26 @@ class BQREPL:
 
         formatted_rows = []
 
-        formatted_row = " <b><ansiblue>row</ansiblue></b> |"
+        formatted_row = style(" row", fg="blue", bold=True) + " |"
         formatted_row += "|".join(
             [
                 " "
-                + f"<b><ansigreen>{x}</ansigreen></b>"
+                + style(x, fg="green")
                 + " " * (max(widths["values"][x], widths["columns"][x]) - len(x) + 1)
                 for x, y in columns
             ]
         )
         formatted_row += "|"
-        formatted_rows.append(HTML(formatted_row))
+        formatted_rows.append(formatted_row)
 
-        formatted_row = HTML("     |")
+        formatted_row = "     |"
         for x, y in columns:
-            formatted_value = HTML(" <ansicyan>{}</ansicyan>{}|").format(
-                y, " " * (max(widths["values"][x], widths["columns"][x]) - len(y) + 1)
+            formatted_value = (
+                style(" " + y, fg="cyan")
+                + " " * (max(widths["values"][x], widths["columns"][x]) - len(y) + 1)
+                + "|"
             )
-            formatted_row = merge_formatted_text([formatted_row, formatted_value])
+            formatted_row += formatted_value
         formatted_rows.append(formatted_row)
         separator_row = "-----|"
         separator_row += "+".join(
@@ -348,75 +353,67 @@ class BQREPL:
         for i, row in enumerate(values):
             if i == 0:
                 formatted_rows.append(separator_row)
-            formatted_row = HTML(" <ansiblue>{}</ansiblue>").format(f"{i:3,d}")
+            formatted_row = style(f" {i:3,d}", fg="blue")
             for value, (col_name, col_type) in zip(row, columns):
-                formatted_row = merge_formatted_text([formatted_row, HTML(" |" + " ")])
+                formatted_row += " | "
                 if value is not None:
-                    formatted_value = HTML("{}").format(value)
+                    formatted_value = value
                     try:
                         len_value = len(value)
                     except TypeError:
                         len_value = 0
                 else:
-                    formatted_value = HTML("<ansibrightred>null</ansibrightred>")
+                    formatted_value = style("null", fg="bright_red")
                     len_value = 4
                 whitespace = " " * (
                     max(widths["columns"][col_name], widths["values"][col_name])
                     - len_value
                 )
                 if col_type in ("INTEGER", "FLOAT"):
-                    formatted_row = merge_formatted_text(
-                        [formatted_row, HTML(whitespace), formatted_value]
-                    )
+                    formatted_row += whitespace + formatted_value
                 else:
-                    formatted_row = merge_formatted_text(
-                        [formatted_row, formatted_value, HTML(whitespace)]
-                    )
-            formatted_row = merge_formatted_text([formatted_row, HTML(" |")])
+                    formatted_row += formatted_value + whitespace
+            formatted_row += " |"
             formatted_rows.append(formatted_row)
 
         formatted_rows.append(final_row)
 
-        return formatted_rows
+        return formatted_rows, len(final_row)
 
     def format_rows_expanded(self, values, columns, widths, settings):
         """Prepare formatted rows in extended view, ready for printing"""
 
         formatted_rows = []
 
-        row_delimiter_template = "-[ <b><ansiblue>row {}</ansiblue></b> ]-"
+        row_delimiter_template = "-[ " + style("row {}", fg="blue", bold=True) + " ]-"
         max_col_name_width = max([len(x[0]) for x in columns])
         max_col_value_width = min(
             self.settings["max_expanded_width"], max(4, max(widths["values"].values()))
         )
         max_table_width = max_col_name_width + max_col_value_width + 3
         for i, row in enumerate(values):
-            formatted_row = HTML(row_delimiter_template).format(f"{i:,d}")
+            formatted_row = row_delimiter_template.format(f"{i:,d}")
             # calculate length of this header but substract what's inside tags
-            row_len = sum([len(x[1]) for x in formatted_row.formatted_text])
+            row_len = len(unstyle(formatted_row))
             if max_table_width >= row_len:
                 fills = max_table_width - row_len
-                formatted_row = merge_formatted_text([formatted_row, HTML("-" * fills)])
+                formatted_row += "-" * fills
 
             formatted_rows.append(formatted_row)
 
             for value, (col_name, col_type) in zip(row, columns):
-                formatted_row = HTML("<ansibrightgreen>{}</ansibrightgreen>").format(
-                    f"{col_name:{max_col_name_width}}"
-                )
+                formatted_row = style(
+                    f"{col_name:{max_col_name_width}}", fg="bright_green")
+
                 if value is None:
-                    value = HTML(
-                        "<ansibrightred>null</ansibrightred>"
-                        + " " * (max_col_value_width - 4)
-                    )
+                    value = style("null", fg="red") + " " * (max_col_value_width - 4)
                 else:
-                    value = HTML("{}").format(f"{value:{max_col_value_width}}")
-                formatted_row = merge_formatted_text(
-                    [formatted_row, HTML(" | "), value]
-                )
+                    value = f"{value:{max_col_value_width}}"
+                formatted_row += " | " + value
+
                 formatted_rows.append(formatted_row)
 
-        return formatted_rows
+        return formatted_rows, max_table_width
 
     def show_results(self, data, schema, t0=None):
         """Prints formatted resutls"""
@@ -436,24 +433,29 @@ class BQREPL:
         )
 
         if not self.settings["expanded"]:
-            formatted_rows = self.format_rows(values, columns, widths, self.settings)
+            formatted_rows, w = self.format_rows(values, columns, widths, self.settings)
         else:
-            formatted_rows = self.format_rows_expanded(
+            formatted_rows, w = self.format_rows_expanded(
                 values, columns, widths, self.settings
             )
 
-        for formatted_row in formatted_rows:
-            print_formatted_text(formatted_row)
+        wmax = get_terminal_size().columns
+        if w >= wmax:
+            echo_via_pager("\n".join(formatted_rows))
+        else:
+            echo("\n".join(formatted_rows))
 
         footer_row = (
-            "<ansibrightblack>"
-            f"{len(values):,d}/{total_rows:,d}"
-            "</ansibrightblack> results."
+            style(f"{len(values):,d}/{total_rows:,d} ", fg="bright_black")
+            + "results."
         )
         if t0:
             dt = datetime.now(tz=pytz.utc) - t0
-            footer_row += f" Time: <ansibrightblack>{dt}</ansibrightblack>"
-        print_formatted_text(HTML(footer_row))
+            footer_row += (
+                " Time: "
+                + style(dt, fg="bright_black")
+            )
+        echo(footer_row)
 
     def execute_command(self, text):
         """Execute BQ command"""
@@ -474,12 +476,11 @@ class BQREPL:
             if len(text.split(" ")) > 1:
                 project = text.split(" ")[1]
                 message = (
-                    "Switched project to <ansibrightblack>{}</ansibrightblack>".format(
-                        project
-                    )
+                    "Switched project to "
+                    + style(project, fg="bright_black")
                 )
                 self.set_project(project)
-                print_formatted_text(HTML(message))
+                echo(message)
             else:
                 self.list_projects()
 
@@ -487,7 +488,7 @@ class BQREPL:
             try:
                 dataset = text.split(" ")[1]
             except IndexError:
-                print_formatted_text(HTML(r"<ansired>Missing dataset</ansired>"))
+                secho("Missing dataset", fg="red")
                 return
 
             self.list_tables(dataset)
@@ -496,7 +497,7 @@ class BQREPL:
             try:
                 table = text.split(" ")[1]
             except IndexError:
-                print_formatted_text(HTML(r"<ansired>Missing table</ansired>"))
+                secho("Missing table", fg="red")
                 return
 
             self.list_columns(table)
@@ -508,21 +509,16 @@ class BQREPL:
             try:
                 cmd, variable, value = text.split(" ")
             except ValueError:
-                print_formatted_text(
-                    HTML(
-                        r"<ansired>Ugh, I expected something like "
-                        r"'<i>\set variable value</i>'"
-                        ", got something weird instead...</ansired>"
-                    )
+                echo(
+                    style("Ugh, I expected something like ", fg="red")
+                    + style(">set variable value<", fg="red", underline=True)
+                    + style(", got something weird instead...", fg="red")
                 )
                 return
             if variable not in self.settings.keys():
-                print_formatted_text(
-                    HTML(
-                        r"<ansired>Unknown parameter '<i>{}</i>'...</ansired>".format(
-                            variable
-                        )
-                    )
+                echo(
+                    style("Unknown parameter ", fg="red")
+                    + style(variable, fg="red", italic=True)
                 )
                 return
 
@@ -534,26 +530,25 @@ class BQREPL:
                 elif value.lower() in ["n", "no", "off", "false", "f", "-1", "0"]:
                     newval = False
                 else:
-                    print_formatted_text(
-                        HTML(
-                            r"<ansired>Unknown value '<i>{}</i>'...</ansired>".format(
-                                value
-                            )
-                        )
+                    echo(
+                        style("Unknown value ", fg="red")
+                        + style(value, fg="red", italic=True)
+                        + style("...", fg="red")
                     )
                     return
                 self.settings["expanded"] = newval
                 message = (
-                    "Toggled expanded view <ansibrightblack>"
-                    "{}</ansibrightblack>".format("ON" if newval else "OFF")
+                    "Toggled expanded view "
+                    + style("ON" if newval else "OFF", fg="bright_black")
                 )
-                print_formatted_text(HTML(message))
+                echo(message)
             elif variable == "project":
                 message = (
-                    "Switched project to <ansibrightblack>" f"{value}</ansibrightblack>"
+                    "Switched project to "
+                    + style(value, fg="bright_black")
                 )
                 self.set_project(value)
-                print_formatted_text(HTML(message))
+                echo(message)
             else:
                 self.settings[variable] = int(value)
 
@@ -603,7 +598,7 @@ class BQREPL:
             else:
                 self.execute_query(text)
 
-        print_formatted_text(HTML("<ansibrightblack><b>bai!</b></ansibrightblack>"))
+        secho("bai!", fg="bright_black")
 
 
 def main(**kwargs):
