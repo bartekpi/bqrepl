@@ -10,7 +10,7 @@ REPL for BigQuery
 # Commands
 ```
 Commands:
-\?                                    Print this stuff
+\?, \h, \help                         Print this stuff
 \d, \datasets [PROJECT]               List datasets in current project (or another project)
 \p, \projects [PROJECT]               List projects
                                       Will switch projects when provided as parameter
@@ -107,7 +107,7 @@ Stuff to implement, in no particular order:
     - [x] colour-coding nulls
     - [ ] colour-coding floats/integers/strings/dates (do I even need this?)
     - [ ] recall cached query results instead of running them again
-    - [ ] view results in a horizontally scrollable table (like pgcli)
+    - [x] view results in a horizontally scrollable table (like pgcli)
     - [ ] project/dataset tree
     - [ ] use tabs for query results?
     - [ ] async queries
