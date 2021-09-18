@@ -5,4 +5,4 @@ logzero>=1.7.0
 google-cloud-bigquery>=2.18.0
 Pygments>=2.9.0
 pydata-google-auth>=1.2.0
-requests==2.25.1
+requests>=2.25.1
