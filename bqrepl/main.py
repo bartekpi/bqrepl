@@ -1,10 +1,12 @@
 import os
+import re
 import sys
 from shutil import get_terminal_size
 from copy import deepcopy
 from datetime import datetime
 from collections import namedtuple
 
+import requests
 import pytz
 import click
 from click import echo, echo_via_pager, secho, style, unstyle
@@ -19,6 +21,7 @@ from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.shortcuts import clear, prompt
 from prompt_toolkit.completion import WordCompleter
 
+from bqrepl import __version__
 from bqrepl.completer import BQCompleter
 from bqrepl.lexer import BQLexer
 from bqrepl.config import help_commands, help_options, default_settings
@@ -43,9 +46,34 @@ class BQREPL:
         self.prompt = None
         self.client = None
         self.credentials = None
+        self.__version__ = __version__
 
         if not os.environ.get("LESS"):
             os.environ["LESS"] = "-SRXF"
+
+        # check latest version
+        url = "https://raw.githubusercontent.com/bartekpi/bqrepl/main/bqrepl/__init__.py"  # noqa
+        try:
+            response = requests.get(url)
+            if response.status_code == 200:
+                try:
+                    version = response.text.split("\n")[0].split("=")[1].strip('"')
+                    version = re.sub(r"""\"|\s|\n\'""", "", version)
+                    if version > self.__version__:
+                        secho(
+                            f"There's a newer version ({version}) than the one "
+                            f"you are runinng ({self.__version__})", fg="green"
+                            )
+                        secho(
+                            "If you `pip install --upgrade bqrepl`, "
+                            "maybe something magical will happen...\n", italic=True
+                            )
+                except IndexError:
+                    pass
+            else:
+                secho("Something went wrong checking for latest version", fg="yellow")
+        except requests.exceptions.ConnectionError:
+            secho("Could not establish connection to verify version", fg="red")
 
     def connect_client(self):
         """Connects to BQ"""
@@ -611,7 +639,6 @@ def main(**kwargs):
     bqrepl = BQREPL(
         credentials_file=kwargs.get("credentials_file"), project=kwargs.get("project")
     )
-
     bqrepl.run()
 
 
