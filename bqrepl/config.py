@@ -9,7 +9,7 @@ default_settings = {
 
 help_commands = [
     (
-        r"\?",
+        r"\?, \h, \help",
         "Print this stuff"
     ),
     (

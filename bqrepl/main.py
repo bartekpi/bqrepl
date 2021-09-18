@@ -461,7 +461,7 @@ class BQREPL:
         """Execute BQ command"""
         text = text.strip()
 
-        if text == "\\?":
+        if text.lower().strip() in ["\\?", "\\h", "\\help"]:
             self.print_help()
 
         if text.split(" ")[0] in ("\\d", "\\datasets"):
@@ -555,9 +555,14 @@ class BQREPL:
     def execute_query(self, text):
         """Executes query"""
 
-        query_job = self.client.query(text)
-        if query_job.errors:
-            for err_dict in query_job.errors:
+        try:
+            query_job = self.client.query(text)
+            if query_job.errors:
+                for err_dict in query_job.errors:
+                    logger.error(err_dict)
+                return
+        except Exception as e:
+            for err_dict in e.args:
                 logger.error(err_dict)
             return
 
@@ -585,8 +590,6 @@ class BQREPL:
             except EOFError:
                 break
 
-            if not text:
-                continue
             if not text.strip():
                 continue
             if text.strip().lower() in ["clear", "\\clear"]:
@@ -596,7 +599,10 @@ class BQREPL:
             if text.startswith("\\"):
                 self.execute_command(text)
             else:
-                self.execute_query(text)
+                try:
+                    self.execute_query(text)
+                except KeyboardInterrupt:
+                    secho("Cancelled query", fg="yellow")
 
         secho("bai!", fg="bright_black")
 
